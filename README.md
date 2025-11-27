@@ -17,7 +17,7 @@ A modern, interactive AI chatbot application powered by Google's Gemini 2.0 Flas
   - React 19
   - Vite 7
   - CSS3
-- **Backend**:
+- **Backend** (🚧 Work in Progress):
   - Node.js
   - Express.js
   - CORS
@@ -62,16 +62,18 @@ npm run dev
 
 The application will be available at `http://localhost:5173`
 
-### Backend Server (Optional)
+### Backend Server (🚧 Work in Progress)
 
-The application includes support for a backend server to enable multi-user support and persistent chat history. If the backend is set up, start it with:
+The backend server for multi-user support and persistent chat history is currently under development.
+
+Once complete, start it with:
 ```bash
 npm run server
 ```
 
-The backend server runs on `http://localhost:3001`
+The backend server will run on `http://localhost:3001`
 
-> **Note**: The backend server is optional. The application works without it using local storage for memory persistence.
+> **Note**: The backend is a work in progress. Currently, the application works without it using local storage for memory persistence.
 
 ### Build for Production
 
