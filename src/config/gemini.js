@@ -1,38 +1,59 @@
-async function runChat(prompt, history = []) {
-  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+const API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-  const contents = [
-    ...history.flatMap(item => [
-      { role: "user", parts: [{ text: item.prompt }] },
-      { role: "model", parts: [{ text: item.response }] }
-    ]),
-    { role: "user", parts: [{ text: prompt }] }
-  ];
-
-  const data = {
-    contents: contents,
-  };
-
+async function runChat(prompt, history = [], signal = null) {
   try {
-    const response = await fetch(url, {
+    // Convert history to Groq format
+    const messages = history.flatMap(item => [
+      {
+        role: "user",
+        content: item.prompt,
+      },
+      {
+        role: "assistant",
+        content: item.response,
+      }
+    ]);
+
+    // Add current prompt
+    messages.push({
+      role: "user",
+      content: prompt,
+    });
+
+    // Call Groq API
+    const response = await fetch(GROQ_API_URL, {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+        top_p: 1,
+      }),
+      signal: signal // Add abort signal support
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error.message);
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again in a moment.");
+      } else if (response.status === 401) {
+        throw new Error("Invalid API key. Please check your Groq API key.");
+      } else {
+        throw new Error(errorData.error?.message || "Failed to get response from Groq");
+      }
     }
 
-    const responseData = await response.json();
-    return responseData.candidates[0].content.parts[0].text;
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "No response generated.";
   } catch (error) {
     console.error("Error running chat:", error);
-    return `Error: Unable to get response from Gemini API. ${error.message}`;
+    throw error;
   }
 }
 

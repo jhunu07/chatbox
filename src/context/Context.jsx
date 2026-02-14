@@ -1,8 +1,6 @@
-
-import { createContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import runChat from "../config/gemini";
-
-export const Context = createContext();
+import { Context } from "./ContextInstance";
 
 const ContextProvider = (props) => {
   const [input, setInput] = useState("");
@@ -12,70 +10,96 @@ const ContextProvider = (props) => {
   const [loading, setLoading] = useState(false);
   const [resultData, setResultData] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
-  const [memory, setMemory] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [requestCount, setRequestCount] = useState(0);
+  const [abortController, setAbortController] = useState(null);
+  const MAX_REQUESTS_PER_DAY = 19;
 
-  const apiUrl = "http://localhost:3001/api";
-
-  // Fetch users on mount
   useEffect(() => {
-    const fetchUsers = async () => {
+    // Load chat history from localStorage
+    const storedHistory = localStorage.getItem("chat-history");
+    if (storedHistory) {
       try {
-        const response = await fetch(`${apiUrl}/users`);
-        const data = await response.json();
-        setUsers(data);
-        if (data.length > 0) {
-          setCurrentUser(data[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching users:", error);
+        const parsed = JSON.parse(storedHistory);
+        setChatHistory(parsed);
+      } catch (e) {
+        console.error("Failed to load chat history:", e);
       }
-    };
-    fetchUsers();
-  }, []);
+    }
 
-  // Fetch chat history when currentUser changes
-  useEffect(() => {
-    const fetchHistory = async () => {
-      if (currentUser) {
-        try {
-          const response = await fetch(`${apiUrl}/history/${currentUser.id}`);
-          const data = await response.json();
-          setChatHistory(data);
-        } catch (error) {
-          console.error("Error fetching chat history:", error);
-        }
+    // Load request count from localStorage
+    const today = new Date().toDateString();
+    const storedData = localStorage.getItem("rate-limit-data");
+    if (storedData) {
+      const { date, count } = JSON.parse(storedData);
+      if (date === today) {
+        setRequestCount(count);
+      } else {
+        // Reset count for new day
+        localStorage.setItem("rate-limit-data", JSON.stringify({ date: today, count: 0 }));
+        setRequestCount(0);
       }
-    };
-    fetchHistory();
-  }, [currentUser]);
-
-
-  useEffect(() => {
-    const storedMemory = localStorage.getItem("gemini-memory");
-    if (storedMemory) {
-      setMemory(JSON.parse(storedMemory));
+    } else {
+      localStorage.setItem("rate-limit-data", JSON.stringify({ date: today, count: 0 }));
     }
   }, []);
 
-  const saveMemory = (newMemory) => {
-    setMemory(newMemory);
-    localStorage.setItem("gemini-memory", JSON.stringify(newMemory));
-  }
+  // Save chat history to localStorage whenever it changes
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      localStorage.setItem("chat-history", JSON.stringify(chatHistory));
+    }
+  }, [chatHistory]);
 
-  const delayPara = (index, nextWord) => {
-    setTimeout(function () {
-      setResultData((prev) => prev + nextWord);
-    }, 75 * index);
-  };
+  const incrementRequestCount = () => {
+    const today = new Date().toDateString();
+    const newCount = requestCount + 1;
+    setRequestCount(newCount);
+    localStorage.setItem("rate-limit-data", JSON.stringify({ date: today, count: newCount }));
+  }
 
   const newChat = () => {
     setLoading(false);
     setShowResult(false);
+    setError(null);
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+  };
+
+  const stopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+      setError("Generation stopped by user");
+    }
+  };
+
+  const regenerateResponse = async () => {
+    if (!recentPrompt) return;
+    
+    // Remove last response from history
+    if (chatHistory.length > 0) {
+      const newHistory = chatHistory.slice(0, -1);
+      setChatHistory(newHistory);
+    }
+    
+    // Resend the prompt
+    await onSent(recentPrompt);
   };
 
   const onSent = async (prompt) => {
+    setError(null);
+
+    // Check rate limit
+    if (requestCount >= MAX_REQUESTS_PER_DAY) {
+      setError(`Daily limit reached! You can make ${MAX_REQUESTS_PER_DAY} requests per day. Come back tomorrow!`);
+      setShowResult(true);
+      return;
+    }
+
     setResultData("");
     setLoading(true);
     setShowResult(true);
@@ -83,113 +107,55 @@ const ContextProvider = (props) => {
     const currentPrompt = prompt !== undefined ? prompt : input;
 
     if (prompt === undefined) {
-        setPrevPrompts(prev => [...prev, input]);
+      setPrevPrompts(prev => [...prev, input]);
     }
     setRecentPrompt(currentPrompt);
 
-    if (currentPrompt.toLowerCase().startsWith("remember that") || currentPrompt.toLowerCase().startsWith("store this")) {
-      const fact = currentPrompt.replace(/^(remember that|store this)/i, "").trim();
-      if (fact) {
-        const newMemory = [...memory, fact];
-        saveMemory(newMemory);
-        setResultData("I've saved that for you.");
+    // Create abort controller for this request
+    const controller = new AbortController();
+    setAbortController(controller);
+
+    try {
+      const response = await runChat(currentPrompt, chatHistory, controller.signal);
+      const newChatEntry = { 
+        prompt: currentPrompt, 
+        response: response,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, newChatEntry]);
+      setResultData(response);
+      incrementRequestCount();
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        setError("Request was cancelled");
       } else {
-        setResultData("Please provide something to remember.");
+        console.error("Error in onSent:", error);
+        setError(error.message || "Something went wrong. Please try again.");
       }
+      setResultData("");
+    } finally {
       setLoading(false);
       setInput("");
-      return;
+      setAbortController(null);
     }
-
-    if (currentPrompt.toLowerCase().startsWith("forget that") || currentPrompt.toLowerCase().startsWith("delete this")) {
-      const factToRemove = currentPrompt.replace(/^(forget that|delete this)/i, "").trim();
-      if (factToRemove) {
-        const newMemory = memory.filter(item => item.toLowerCase() !== factToRemove.toLowerCase());
-        if (newMemory.length < memory.length) {
-            saveMemory(newMemory);
-            setResultData("I've forgotten that for you.");
-        } else {
-            setResultData("I don't have that in my memory.");
-        }
-      } else {
-        // forget all
-        saveMemory([]);
-        setResultData("I've cleared my memory.");
-      }
-      setLoading(false);
-      setInput("");
-      return;
-    }
-
-    const memoryContext = memory.length > 0 ? `Remember the following facts: ${memory.join(". ")}. ` : "";
-    const promptWithMemory = memoryContext + currentPrompt;
-
-    const response = await runChat(promptWithMemory, chatHistory);
-    
-    // Save to backend
-    if (currentUser) {
-        try {
-            await fetch(`${apiUrl}/history/${currentUser.id}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: currentPrompt, response: response })
-            });
-        } catch (error) {
-            console.error("Error saving chat history:", error);
-        }
-    }
-
-    setChatHistory(prev => [...prev, {prompt: currentPrompt, response: response}]);
-
-    let responseArray = response.split("**");
-    let newResponse = "";
-    for (let i = 0; i < responseArray.length; i++) {
-      if (i === 0 || i % 2 !== 1) {
-        newResponse += responseArray[i];
-      } else {
-        newResponse += "<b>" + responseArray[i] + "</b>";
-      }
-    }
-    let newResponse2 = newResponse.split("*").join("</br>");
-    let newResponseArray = newResponse2.split(" ");
-    for (let i = 0; i < newResponseArray.length; i++) {
-      const nextWord = newResponseArray[i];
-      delayPara(i, nextWord + " ");
-    }
-    setLoading(false);
-    setInput("");
   };
 
-  const clearChatHistory = async () => {
-    if (currentUser) {
-        try {
-            await fetch(`${apiUrl}/history/${currentUser.id}`, { method: 'DELETE' });
-            setChatHistory([]);
-            setPrevPrompts([]);
-            setLoading(false);
-            setShowResult(false);
-        } catch (error) {
-            console.error("Error clearing chat history:", error);
-        }
+  const clearChatHistory = () => {
+    if (window.confirm('Clear all chat history?')) {
+      setChatHistory([]);
+      setPrevPrompts([]);
+      setLoading(false);
+      setShowResult(false);
+      setError(null);
+      localStorage.removeItem("chat-history");
     }
   }
 
-  const switchUser = (user) => {
-    setCurrentUser(user);
-  }
-
-  const addUser = async (name) => {
-    try {
-        const response = await fetch(`${apiUrl}/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        const newUser = await response.json();
-        setUsers(prev => [...prev, newUser]);
-        setCurrentUser(newUser);
-    } catch (error) {
-        console.error("Error adding user:", error);
+  const deleteChat = (index) => {
+    const newHistory = chatHistory.filter((_, i) => i !== index);
+    setChatHistory(newHistory);
+    if (newHistory.length === 0) {
+      localStorage.removeItem("chat-history");
     }
   }
 
@@ -207,10 +173,14 @@ const ContextProvider = (props) => {
     newChat,
     chatHistory,
     clearChatHistory,
-    users,
-    currentUser,
-    switchUser,
-    addUser
+    deleteChat,
+    setResultData,
+    setShowResult,
+    error,
+    requestCount,
+    maxRequests: MAX_REQUESTS_PER_DAY,
+    stopGeneration,
+    regenerateResponse
   };
 
   return (
