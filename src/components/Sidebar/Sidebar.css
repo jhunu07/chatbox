@@ -1,23 +1,64 @@
-.sidebar{
-    min-height:100vh ;
+.sidebar {
+    min-height: 100vh;
     display: inline-flex;
     flex-direction: column;
     justify-content: space-between;
     background: rgb(243, 234, 239);
     padding: 25px 20px;
-    
-    
 }
 
-.sidebar img{
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        width: 250px;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .sidebar.extended {
+        transform: translateX(0);
+    }
+    
+    .sidebar .menu {
+        position: fixed;
+        left: 10px;
+        top: 20px;
+        z-index: 1001;
+        background: white;
+        padding: 10px;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .help-popup {
+        padding: 20px;
+        margin: 0 10px;
+    }
+
+    .help-popup h3 {
+        font-size: 20px;
+    }
+
+    .help-popup ul li {
+        font-size: 14px;
+    }
+}
+
+.sidebar img {
     width: 20px;
 }
-.sidebar .menu{
+
+.sidebar .menu {
     display: block;
     margin-left: 10px;
     cursor: pointer;
 }
-.sidebar .new-chat{
+
+.sidebar .new-chat {
     display: inline-flex;
     align-items: center;
     margin-top: 50px;
@@ -30,37 +71,207 @@
     cursor: pointer;
 
 }
-.sidebar .recent{
+
+.sidebar .recent {
     display: flex;
     flex-direction: column;
 
 }
-.sidebar .recent-title{
+
+.sidebar .recent-title {
     margin-top: 30px;
     margin-bottom: 20px;
-    
+    font-weight: 600;
+    color: #333;
+    font-size: 16px;
 }
-.sidebar .recent-entry{
-   display: flex;
+
+.sidebar .recent-entry {
+    display: flex;
     align-items: start;
     gap: 10px;
     padding: 10px;
     padding-right: 40px;
     border-radius: 50px;
     cursor: pointer;
-    color: rgb(5, 5, 5);    
+    color: rgb(5, 5, 5);
+    position: relative;
+    transition: all 0.2s ease;
 }
 
-.sidebar .recent-entry:hover{
+.sidebar .recent-entry:hover {
     background-color: #f4f5f7;
+    transform: translateX(5px);
 }
 
-.sidebar .botton{
-   display: flex;
-   flex-direction: column;
+.sidebar .recent-entry .chat-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.sidebar .botton-item{
-   padding-right: 10px;
-   cursor: pointer;
+.sidebar .recent-entry .delete-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 12px;
+    display: none;
+    transition: all 0.2s ease;
+}
+
+.sidebar .recent-entry:hover .delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar .recent-entry .delete-btn:hover {
+    background: #cc0000;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.sidebar .recent-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.sidebar .recent-list::-webkit-scrollbar {
+    width: 5px;
+}
+
+.sidebar .recent-list::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
+
+.sidebar .empty-message {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    padding: 20px 10px;
+}
+
+/* Help popup styles */
+.help-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.help-popup {
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    position: relative;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { 
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to { 
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.close-help {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.close-help:hover {
+    background: #e0e0e0;
+    transform: rotate(90deg);
+}
+
+.help-popup h3 {
+    margin-top: 0;
+    color: #333;
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.help-popup ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 15px 0;
+}
+
+.help-popup ul li {
+    padding: 10px 0;
+    color: #555;
+    font-size: 15px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.help-popup ul li:last-child {
+    border-bottom: none;
+}
+
+.help-note {
+    background: #fffbe6;
+    padding: 12px;
+    border-radius: 10px;
+    border-left: 3px solid #ffd700;
+    color: #666;
+    font-size: 14px;
+    margin-top: 15px;
+}
+
+.sidebar .bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sidebar .bottom-item {
+    padding-right: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sidebar .bottom-item:hover {
+    transform: translateX(5px);
+}
+
+.sidebar .bottom-item:active {
+    transform: translateX(5px) scale(0.95);
 }
