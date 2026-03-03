@@ -224,5 +224,3 @@ MIT License - Feel free to use this project for personal or commercial purposes.
 For issues or questions, please open an issue in the repository or contact the maintainer.
 
 ---
-
-**Note:** Keep your API key secure and never commit it to version control. Always use environment variables for sensitive information.
